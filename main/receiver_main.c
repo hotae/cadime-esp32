@@ -52,8 +52,10 @@ static const char *TAG = "MODELE_RECEIVER";
 
 #include "switch_driver.h"
 
-#define DEFAULT_ZB_PRIMARY_CHANNEL_MASK     (1l << 13)  /* Zigbee primary channel mask */
-#define DEFAULT_ZB_SECONDARY_CHANNEL_MASK   (1l << 11)  /* Zigbee primary channel mask use in the example */
+// #define DEFAULT_ZB_PRIMARY_CHANNEL_MASK     (1l << 13)  /* Zigbee primary channel mask */
+// #define DEFAULT_ZB_SECONDARY_CHANNEL_MASK   (1l << 11)  /* Zigbee primary channel mask use in the example */
+#define DEFAULT_ZB_PRIMARY_CHANNEL_MASK     ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK
+#define DEFAULT_ZB_SECONDARY_CHANNEL_MASK   ESP_ZB_TRANSCEIVER_ALL_CHANNELS_MASK
 #define DEFAULT_PANID     0x2000
 
 //jylee-20241017: for jylee test
@@ -72,6 +74,7 @@ static const char *TAG = "MODELE_RECEIVER";
 #define CUSTOM_EXT_PAN_ID {0xDE, 0xAD, 0xBE, 0xEF, 0x01, 0x23, 0x45, 0x67}
 
 uint16_t pan_id = 0;
+uint32_t channel_mask = 0;
 
 static switch_func_pair_t button_func_pair[] = {
     {GPIO_INPUT_IO_TOGGLE_SWITCH, SWITCH_ONOFF_TOGGLE_CONTROL}
@@ -211,9 +214,12 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                 {
                     pan_id = DEFAULT_PANID; // for test///
                 }
+				//jylee-20250325: split channel for pan_id
+				//channel_mask = (1l << (11 + (pan_id % 16)));
                 //jylee-20240527: for test
+				esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+				esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
                 esp_zb_set_pan_id(pan_id);
-                esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
 
                 esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_FORMATION);
                 esp_zb_bdb_open_network(180);
@@ -467,10 +473,13 @@ void initialize_zigbee_network(void)
     {
         pan_id = DEFAULT_PANID; // for test///
     }
-    //jylee-20240527: for test
-    esp_zb_set_pan_id(pan_id);
-    esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
 
+	esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	//jylee-20240527: for test
+    esp_zb_set_pan_id(pan_id);
+    ///esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	
 	// uint8_t ext_pan_id[] = CUSTOM_EXT_PAN_ID;
 	// esp_zb_set_extended_pan_id(ext_pan_id);
 
@@ -479,6 +488,13 @@ void initialize_zigbee_network(void)
 
 static void esp_zb_task(void *pvParameters)
 {
+	esp_zb_nvram_erase_at_start(true);
+	esp_zb_platform_config_t config = {
+        .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
+        .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
+    };
+    ESP_ERROR_CHECK(esp_zb_platform_config(&config));
+
     /* initialize Zigbee stack with Zigbee coordinator config */
     esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZC_CONFIG();
     esp_zb_init(&zb_nwk_cfg);
@@ -553,27 +569,27 @@ static void esp_zb_task(void *pvParameters)
     // esp_zb_device_add_set_attr_value_cb(attr_cb);
     // esp_zb_device_add_report_attr_cb(attr_cb);
 
-    esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
-
+    /////esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	
     //jylee-20240527
     initialize_zigbee_network();
     //ESP_ERROR_CHECK(esp_zb_start(false));
     esp_zb_main_loop_iteration();
 }
 
-static void test_task(void *pvParameters) {
-    int test = 0;
-  for (;;) {
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-    // light_driver_set_power(true);
-    test = 1;
-    esp_zb_zcl_set_attribute_val(10, ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_ON_OFF_ON_TIME, &test, false);
-    vTaskDelay(5000 / portTICK_PERIOD_MS);
-    // light_driver_set_power(false);
-    test = 0;
-    esp_zb_zcl_set_attribute_val(10, ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_ON_OFF_ON_TIME, &test, false);
-  }
-}
+// static void test_task(void *pvParameters) {
+//     int test = 0;
+//   for (;;) {
+//     vTaskDelay(5000 / portTICK_PERIOD_MS);
+//     // light_driver_set_power(true);
+//     test = 1;
+//     esp_zb_zcl_set_attribute_val(10, ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_ON_OFF_ON_TIME, &test, false);
+//     vTaskDelay(5000 / portTICK_PERIOD_MS);
+//     // light_driver_set_power(false);
+//     test = 0;
+//     esp_zb_zcl_set_attribute_val(10, ESP_ZB_ZCL_CLUSTER_ID_ON_OFF, ESP_ZB_ZCL_CLUSTER_SERVER_ROLE, ESP_ZB_ZCL_ATTR_ON_OFF_ON_TIME, &test, false);
+//   }
+// }
 
 #define PACKET_BUF_SIZE 255
 
@@ -761,6 +777,22 @@ void usb_serial_task(void *pvParameters)
 						// esp_zb_lock_release();
 						// ESP_EARLY_LOGI(TAG, "Send 'on_off toggle' command to address(0x%x) endpoint(%d)", on_off_light.short_addr, on_off_light.endpoint);
 					}
+					else if (data[1] == 0x30) // op
+					{
+						E_PROTOCOL_PANID packet;
+						memcpy(packet.buffer, data, sizeof(packet.buffer));
+						ESP_LOGI(TAG, "Packet Arrived - OP: %02x, PANID: %04x",
+								 packet.e_Data.op, packet.e_Data.panid);
+
+						uint16_t panid_rcv = packet.e_Data.panid;
+
+						// Zigbee 네트워크를 초기화
+						esp_zb_factory_reset();
+						ESP_LOGI(TAG, "Zigbee factory reset");
+
+						ESP_LOGI(TAG, "Rebooting device...");
+						esp_restart(); // ESP32 reboot
+					}
 					else
 					{
 						ESP_LOGE(TAG, "Unknown Packet... - <OP>");
@@ -829,14 +861,61 @@ void init_ext_ant()
 	}
 }
 
+// void esp_zb_task2(void *pvParameters)
+// {
+//     ESP_LOGI(TAG, "Starting Zigbee Coordinator");
+
+//     // 1. Zigbee NVRAM 초기화 (이전 네트워크 설정 제거)
+//     esp_zb_nvram_erase_at_start(true);
+
+//     // 2. Zigbee 플랫폼 설정
+//     esp_zb_platform_config_t zb_platform_config = {
+//         .radio_config = {
+//             .radio_mode = ZB_RADIO_MODE_NATIVE,
+//         },
+//         .host_config = {
+//             .host_connection_mode = ZB_HOST_CONNECTION_MODE_NONE,
+//         }
+//     };
+//     esp_zb_platform_config(&zb_platform_config);
+
+//     // 3. Zigbee Coordinator 네트워크 설정
+//     esp_zb_cfg_t zb_nwk_cfg = {
+//         .esp_zb_role = ESP_ZB_DEVICE_TYPE_COORDINATOR,
+//         .install_code_policy = INSTALLCODE_POLICY_ENABLE,
+//         .nwk_cfg.zczr_cfg = {
+//             .max_children = MAX_CHILDREN,
+//         }
+//     };
+//     esp_zb_init(&zb_nwk_cfg);
+
+// 	//jylee-20240530: NVS Read
+//     pan_id = cd_nvs_read_panid();
+//     if (pan_id == 0)
+//     {
+//         pan_id = DEFAULT_PANID; // for test///
+//     }
+
+//     // 4. PAN ID 및 채널 마스크 설정 (이 순서 중요!)
+//     esp_zb_set_pan_id(pan_id);
+//     esp_zb_set_primary_network_channel_set((1L << 15));
+
+//     // 5. 네트워크 형성 시작
+//     ESP_LOGI(TAG, "Starting network formation on channel 15...");
+//     esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_FORMATION);
+
+//     // 필수: ZBOSS 메인 루프 돌리기
+//     esp_zb_main_loop_iteration();
+// }
+
 void app_main(void)
 {
-    esp_zb_platform_config_t config = {
-        .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
-        .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
-    };
+    // esp_zb_platform_config_t config = {
+    //     .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
+    //     .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
+    // };
     ESP_ERROR_CHECK(nvs_flash_init());
-    ESP_ERROR_CHECK(esp_zb_platform_config(&config));
+    //ESP_ERROR_CHECK(esp_zb_platform_config(&config));
 
     uart_config_t uart_config = {
         .baud_rate = ECHO_UART_BAUD_RATE,
