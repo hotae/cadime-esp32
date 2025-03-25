@@ -473,9 +473,15 @@ void initialize_zigbee_network(void)
     {
         pan_id = DEFAULT_PANID; // for test///
     }
+	//jylee-20250325: split channel for pan_id
+	//channel_mask = (1l << (11 + (pan_id % 16)));
+	channel_mask = (1l << 15);
+	esp_zb_set_channel_mask(channel_mask);
+	esp_zb_set_primary_network_channel_set(channel_mask);
 
-	esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
-	esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	// esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	// esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+	
 	//jylee-20240527: for test
     esp_zb_set_pan_id(pan_id);
     ///esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
@@ -486,9 +492,41 @@ void initialize_zigbee_network(void)
 	esp_zb_start(true);
 }
 
+void zigbee_force_reset_every_boot()
+{
+    nvs_handle_t nvs;
+    uint8_t reset_pending = 0;
+    esp_err_t err;
+
+    err = nvs_open("storage", NVS_READWRITE, &nvs);
+    if (err != ESP_OK) {
+        ESP_LOGE(TAG, "NVS open failed: %s", esp_err_to_name(err));
+        return;
+    }
+
+    err = nvs_get_u8(nvs, "reset_pending", &reset_pending);
+    if (err == ESP_ERR_NVS_NOT_FOUND || reset_pending == 0) {
+        // 📌 reset 요청 → 플래그 저장 후 재부팅
+        ESP_LOGW(TAG, "Zigbee NVRAM reset requested, triggering factory reset...");
+        nvs_set_u8(nvs, "reset_pending", 1);
+        nvs_commit(nvs);
+        nvs_close(nvs);
+
+        esp_zb_factory_reset();  // 💥 여기서 재부팅 발생
+    }
+    else {
+        // 📌 재부팅 이후: 플래그 초기화
+        ESP_LOGI(TAG, "Factory reset completed. Proceeding with normal boot.");
+        nvs_set_u8(nvs, "reset_pending", 0);
+        nvs_commit(nvs);
+        nvs_close(nvs);
+    }
+}
+
 static void esp_zb_task(void *pvParameters)
 {
 	esp_zb_nvram_erase_at_start(true);
+
 	esp_zb_platform_config_t config = {
         .radio_config = ESP_ZB_DEFAULT_RADIO_CONFIG(),
         .host_config = ESP_ZB_DEFAULT_HOST_CONFIG(),
@@ -498,6 +536,9 @@ static void esp_zb_task(void *pvParameters)
     /* initialize Zigbee stack with Zigbee coordinator config */
     esp_zb_cfg_t zb_nwk_cfg = ESP_ZB_ZC_CONFIG();
     esp_zb_init(&zb_nwk_cfg);
+
+	//jylee-20250325: reset zb connection
+	zigbee_force_reset_every_boot();
 
     uint8_t test_attr, test_attr2;
     test_attr = 0;
