@@ -15,7 +15,7 @@
 #include "esp_zigbee_core.h"
 
 /* Zigbee configuration */
-#define MAX_CHILDREN                    10          /* the max amount of connected devices */
+#define MAX_CHILDREN                    20          /* the max amount of connected devices */
 #define INSTALLCODE_POLICY_ENABLE       false    /* enable the install code policy for security */
 #define HA_ESP_LIGHT_ENDPOINT           10          /* esp light bulb device endpoint */
 /////#define ESP_ZB_PRIMARY_CHANNEL_MASK     (1l << 13)  /* Zigbee primary channel mask use in the example */

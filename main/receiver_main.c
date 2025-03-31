@@ -214,11 +214,21 @@ void esp_zb_app_signal_handler(esp_zb_app_signal_t *signal_struct)
                 {
                     pan_id = DEFAULT_PANID; // for test///
                 }
-				//jylee-20250325: split channel for pan_id
-				//channel_mask = (1l << (11 + (pan_id % 16)));
-                //jylee-20240527: for test
-				esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
-				esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+				//jylee-20250325: split channel by pan_id
+				//jylee-20250326: except channel 18
+				u_int8_t _id = (pan_id % 15);
+				u_int8_t _id2 = (pan_id % 15) + 1;
+				if (_id >= 7) _id++;
+				if (_id > 15) _id = 15;
+				if (_id2 >= 7) _id2++;
+				if (_id2 > 15) _id2 = 15;
+				if (_id == 15) _id2 = 0;
+				channel_mask = (1l << (11 + _id)) | (1l << (11 + _id2));
+				//jylee-20240527: for test
+				// esp_zb_set_primary_network_channel_set(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+				// esp_zb_set_channel_mask(DEFAULT_ZB_PRIMARY_CHANNEL_MASK);
+				esp_zb_set_primary_network_channel_set(channel_mask);
+				esp_zb_set_channel_mask(channel_mask);
                 esp_zb_set_pan_id(pan_id);
 
                 esp_zb_bdb_start_top_level_commissioning(ESP_ZB_BDB_MODE_NETWORK_FORMATION);
@@ -473,9 +483,18 @@ void initialize_zigbee_network(void)
     {
         pan_id = DEFAULT_PANID; // for test///
     }
-	//jylee-20250325: split channel for pan_id
-	//channel_mask = (1l << (11 + (pan_id % 16)));
-	channel_mask = (1l << 15);
+		//jylee-20250325: split channel by pan_id
+	//jylee-20250326: except channel 18
+	u_int8_t _id = (pan_id % 15);
+	u_int8_t _id2 = (pan_id % 15) + 1;
+	
+	if (_id >= 7) _id++;
+	if (_id > 15) _id = 15;
+	if (_id2 >= 7) _id2++;
+	if (_id2 > 15) _id2 = 15;
+	if (_id == 15) _id2 = 0;
+	channel_mask = (1l << (11 + _id)) | (1l << (11 + _id2));
+	
 	esp_zb_set_channel_mask(channel_mask);
 	esp_zb_set_primary_network_channel_set(channel_mask);
 
