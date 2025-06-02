@@ -1,0 +1,17 @@
+*.pyc
+__pycache__/
+.vscode/
+/venv/
+/script/.idea/*
+*.log
+*.mk
+*.o
+*.index
+*.su
+*.list
+*.prefs
+*.elf
+*.map
+*.cyclo
+build/
+managed_components/
